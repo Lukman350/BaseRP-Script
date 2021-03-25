@@ -3,6 +3,7 @@
   "repo": "BaseRP-Script",
   "entry": "gamemodes\\gm.pwn",
   "output": "gamemodes\\gm.amx",
+  "local": true,
   "dependencies": [
     "sampctl/samp-stdlib",
     "pBlueG/SA-MP-MySQL:R41-4",
@@ -15,22 +16,25 @@
   "builds": [
     {
       "name": "main",
-      "args": ["-d3", "-;+", "-(+", "-Z+"]
+      "args": ["-d3", "-;+", "-(+", "-Z+"],
+      "includes": ["includes"]
     }
   ],
   "include_path": "includes",
   "runtime": {
     "version": "0.3.DL",
     "mode": "server",
-    "echo": "Executing server config...",
+    "echo": "Loading configuration...",
     "rcon_password": "password",
     "port": 7777,
     "hostname": "Base Roleplay Script - By Lukman",
+    "gamemodes": ["gm"],
     "maxplayers": 50,
-    "language": "",
+    "language": "Bahasa Indonesia / English",
     "mapname": "San Andreas",
     "weburl": "github.com/Lukman350",
     "gamemodetext": "Unknown",
+    "plugins": ["pBlueG/SA-MP-MySQL:R41-4", "Zeex/samp-plugin-crashdetect:v4.19.4", "maddinat0r/sscanf:v2.8.3", "samp-incognito/samp-streamer-plugin:v2.9.4", "Southclaws/pawn-chrono:1.1.1"],
     "announce": true,
     "lanmode": false,
     "query": true,
@@ -56,7 +60,6 @@
     "db_log_queries": false,
     "conncookies": true,
     "cookielogging": false,
-    "output": true,
-    "gamemodes": ["gm"]
+    "output": true
   }
 }

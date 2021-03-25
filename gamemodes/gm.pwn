@@ -25,6 +25,8 @@
 #include <sscanf2>
 #include <chrono>
 #include <crashdetect>
+#include <easyDialog>
+#include <strlib>
 #include <YSI\y_timers>
 #include <YSI\y_colours>
 
@@ -34,7 +36,7 @@
 #define MYSQL_PASS ""
 #define MYSQL_DB   "baserp"
 
-#define Func:%0(%1) forward %0(%1); public %0(%1)
+#define Func:%0(%1)      forward %0(%1); public %0(%1)
 #define SERVER_SHORTNAME "Base:RP"
 #define SERVER_VERSION   "1.0.0"
 #define SERVER_WEBURL    "https://github.com/Lukman350/BaseRP-Script"
@@ -177,7 +179,7 @@ Save_Char(playerid) {
   GetPlayerPos(playerid, CharData[playerid][pPos][0], CharData[playerid][pPos][1], CharData[playerid][pPos][2]);
   GetPlayerFacingAngle(playerid, CharData[playerid][pPos][3]);
   GetPlayerHealth(playerid, CharData[playerid][pHealth]);
-  GetPlayerArmor(playerid, CharData[playerid][pArmor]);
+  GetPlayerArmour(playerid, CharData[playerid][pArmor]);
 
   new query[1024];
   format(query,sizeof(query),"UPDATE `chars` SET `created` = '%d', `gender` = '%d', `origin` = '%s', `skin` = '%d', `world` = '%d', `interior` = '%d', `money` = '%d', `bankmoney` = '%d', `posx` = '%f', `posy` = '%f', `posz` = '%f', `posa` = '%f', `health` = '%.2f', `armor` = '%.2f', `logindate` = '%d' WHERE `id` = '%d'",
@@ -248,7 +250,7 @@ IsCharLogged(playerid) {
 }
 
 KickEx(playerid, time = 200) {
-  if(PlayerData[playerid][pKicked])
+  if(CharData[playerid][pKicked])
     return 0;
 
   if(IsCharLogged(playerid)) {
@@ -260,10 +262,6 @@ KickEx(playerid, time = 200) {
   return 1;
 }
 
-Func:KickTimer(playerid) {
-  Kick(playerid);
-  return 1;
-}
 
 CheckAccount(playerid) {
   new query[256];
@@ -288,7 +286,95 @@ ShowCharacterMenu(playerid) {
   return 1;
 }
 
+stock SendClientMessageEx(playerid, color, const text[], {Float, _}:...)
+{
+    static
+        args,
+        str[144];
+
+    /*
+         *  Custom Function:that uses #emit to format variables into a string.
+         *  This code is very fragile; touching any code here will cause crashing!
+    */
+    if((args = numargs()) == 3)
+    {
+        SendClientMessage(playerid, color, text);
+    }
+    else
+    {
+        while (--args >= 3)
+        {
+            #emit LCTRL 5
+            #emit LOAD.alt args
+            #emit SHL.C.alt 2
+            #emit ADD.C 12
+            #emit ADD
+            #emit LOAD.I
+            #emit PUSH.pri
+        }
+        #emit PUSH.S text
+        #emit PUSH.C 144
+        #emit PUSH.C str
+        #emit PUSH.S 8
+        #emit SYSREQ.C format
+        #emit LCTRL 5
+        #emit SCTRL 4
+
+        SendClientMessage(playerid, color, str);
+
+        #emit RETN
+    }
+    return 1;
+}
+
+stock SendClientMessageToAllEx(color, const text[], {Float, _}:...)
+{
+    static
+        args,
+        str[144];
+
+    /*
+         *  Custom Function:that uses #emit to format variables into a string.
+         *  This code is very fragile; touching any code here will cause crashing!
+    */
+    if((args = numargs()) == 2)
+    {
+        SendClientMessageToAll(color, text);
+    }
+    else
+    {
+        while (--args >= 2)
+        {
+            #emit LCTRL 5
+            #emit LOAD.alt args
+            #emit SHL.C.alt 2
+            #emit ADD.C 12
+            #emit ADD
+            #emit LOAD.I
+            #emit PUSH.pri
+        }
+        #emit PUSH.S text
+        #emit PUSH.C 144
+        #emit PUSH.C str
+        #emit LOAD.S.pri 8
+        #emit ADD.C 4
+        #emit PUSH.pri
+        #emit SYSREQ.C format
+        #emit LCTRL 5
+        #emit SCTRL 4
+
+        SendClientMessageToAll(color, str);
+
+        #emit RETN
+    }
+    return 1;
+}
+
 // ALL Callback
+Func:KickTimer(playerid) {
+  Kick(playerid);
+  return 1;
+}
 
 Func:OnUCPLoaded(playerid, race_check) {
   if (race_check != g_MysqlRaceCheck[playerid]) 
@@ -590,7 +676,7 @@ Dialog:DIALOG_LOGIN(playerid, response, listitem, inputtext[]) {
   new hash[65];
   SHA256_PassHash(inputtext, UcpData[playerid][uSalt], hash, sizeof(hash));
 
-  if(strcmp(hash, UcpData[playerid][pPassword])) {
+  if(strcmp(hash, UcpData[playerid][uPassword])) {
     if (++UcpData[playerid][uLoginAttempts] >= 3) {
       UcpData[playerid][uLoginAttempts] = 0;
       SendErrorMessage(playerid, "Anda telah memasukkan password yang salah sebanyak 3 kali.");
@@ -602,7 +688,7 @@ Dialog:DIALOG_LOGIN(playerid, response, listitem, inputtext[]) {
     return 1;
   }
 
-  if (!strcmp(UcpData[playerid][pMail], ""))
+  if (!strcmp(UcpData[playerid][uEmail], ""))
     return Dialog_Show(playerid, DIALOG_EMAIL, DIALOG_STYLE_INPUT, "Email", WHITE"Tolong masukkan email dibawah ini:", "Enter", "Quit");
 
   UcpData[playerid][uLogged] = 1;
