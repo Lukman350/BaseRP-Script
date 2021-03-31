@@ -18,6 +18,7 @@
 #pragma compat 1
 #pragma compress 0
 #pragma dynamic 500000
+#pragma warning disable 239, 214, 217
 
 #include <a_samp>
 #include <a_mysql>
@@ -60,9 +61,10 @@ enum ucpData {
   uPassword[128],
   uSalt[128],
   uAdmin,
-  uIP[24],
+  uIP[16],
   uLogged,
   uLoginAttempts,
+  uRegisterDate
 };
 new UcpData[MAX_PLAYERS][ucpData];
 
@@ -160,9 +162,7 @@ Save_UCP(playerid) {
     return 0;
 
   new query[1024];
-  format(query,sizeof(query),"UPDATE `ucp` SET `username` = '%s', `email` = '%s', `admin` = '%d', `ip` = '%s' WHERE `id` = '%d'",
-    UcpData[playerid][uUsername],
-    UcpData[playerid][uEmail],
+  format(query,sizeof(query),"UPDATE `ucp` SET `admin` = '%d', `ip` = '%s' WHERE `id` = '%d'",
     UcpData[playerid][uAdmin],
     UcpData[playerid][uIP],
     UcpData[playerid][uID]
@@ -230,6 +230,25 @@ IsValidRoleplayName(const name[]) {
     return 1;
 }
 
+IsValidEmail(const email[]) 
+{ 
+    new at_pos = strfind(email, "@", true) + 1; 
+    if(email[0] == '@' || at_pos == -1)
+      return false;
+
+    static const providers[][] = { 
+      "hotmail.com", 
+      "gmail.com"
+    }; 
+
+    for(new i = 0; i < sizeof(providers); i ++) { 
+      if(!strcmp(email[at_pos], providers[i], true)) {
+        return true; 
+      } 
+    } 
+    return false; 
+}
+
 GetName(playerid, underscore=1)
 {
     new
@@ -272,7 +291,7 @@ CheckAccount(playerid) {
 }
 
 ShowCharacterMenu(playerid) {
-  new name[MAX_CHARACTERS * 25], count;
+  new name[MAX_CHARACTERS * 50], count;
 
   for (new i; i < MAX_CHARACTERS; i ++) if(CharacterList[playerid][i][0] != EOS) {
     strcat(name, sprintf("%s\n", CharacterList[playerid][i]));
@@ -282,7 +301,7 @@ ShowCharacterMenu(playerid) {
   if(count < MAX_CHARACTERS)
     strcat(name, "<New Character>");
 
-  Dialog_Show(playerid, DIALOG_SELECTCHAR, DIALOG_STYLE_LIST, "Character List", name, "Select", "Quit");
+  Dialog_Show(playerid, SelectChar, DIALOG_STYLE_LIST, "Character List", name, "Select", "Quit");
   return 1;
 }
 
@@ -388,12 +407,13 @@ Func:OnUCPLoaded(playerid, race_check) {
     cache_get_value_name(0, "username", UcpData[playerid][uUsername], 64);
     cache_get_value_name(0, "password", UcpData[playerid][uPassword], 128);
     cache_get_value_name(0, "salt", UcpData[playerid][uSalt], 128);
-    cache_get_value_name(0, "ip", UcpData[playerid][uIP], 24);
+    cache_get_value_name(0, "ip", UcpData[playerid][uIP], 16);
+    cache_get_value_name_int(0, "registerdate", UcpData[playerid][uRegisterDate]);
 
-    Dialog_Show(playerid, DIALOG_LOGIN, DIALOG_STYLE_PASSWORD, "LOGIN", WHITE"Selamat datang kembali "YELLOW"%s"WHITE", silahkan masukkan password Anda dibawah:", "Login", "Cancel", GetName(playerid, 0));
+    Dialog_Show(playerid, Login, DIALOG_STYLE_PASSWORD, "LOGIN", WHITE"Selamat datang kembali "YELLOW"%s"WHITE", silahkan masukkan password Anda dibawah:", "Login", "Cancel", GetName(playerid, 0));
   } else {
     UcpData[playerid][uPassword] = UcpData[playerid][uSalt] = EOS;
-    Dialog_Show(playerid, DIALOG_REGISTER, DIALOG_STYLE_PASSWORD, "REGISTER", WHITE"Akun dengan nama "YELLOW"%s "WHITE"tidak terdaftar. Silahkan masukkan password dibawah untuk mendaftar:", "Register", "Close", GetName(playerid, 0));
+    Dialog_Show(playerid, Register, DIALOG_STYLE_PASSWORD, "REGISTER", WHITE"Akun dengan nama "YELLOW"%s "WHITE"tidak terdaftar. Silahkan masukkan password dibawah untuk mendaftar:", "Register", "Close", GetName(playerid, 0));
   }
   return 1;
 }
@@ -453,6 +473,21 @@ Func:OnPlayerLoaded(playerid) {
       SetTimerEx("SpawnTimer", 1000, false, "d", playerid);
     }
   }
+  return 1;
+}
+
+Func:OnCheckEmail(playerid) {
+  new rows = cache_num_rows();
+
+  if (rows)
+    return Dialog_Show(playerid, DIALOG_EMAIL, DIALOG_STYLE_INPUT, "Email", WHITE"Tolong masukkan email dibawah ini:\n"RED"ERROR: Email ini sudah digunakan oleh player lain!", "Enter", "Quit");
+
+  new query[256];
+  format(query,sizeof(query),"UPDATE `ucp` SET `email` = '%s' WHERE `username` = '%s'", UcpData[playerid][uEmail], GetName(playerid));
+  mysql_tquery(g_DB, query);
+
+  SendClientMessage(playerid, X11_GREEN_YELLOW, "UCP Kamu berhasil didaftarkan.");
+  CheckAccount(playerid);
   return 1;
 }
 
@@ -666,12 +701,12 @@ public OnPlayerClickPlayer(playerid, clickedplayerid, source)
 }
 
 // All Dialogs
-Dialog:DIALOG_LOGIN(playerid, response, listitem, inputtext[]) {
+Dialog:Login(playerid, response, listitem, inputtext[]) {
   if (!response)
     return KickEx(playerid);
 
   if (isnull(inputtext))
-    return Dialog_Show(playerid, DIALOG_LOGIN, DIALOG_STYLE_PASSWORD, "LOGIN", WHITE"Selamat datang kembali "YELLOW"%s"WHITE", silahkan masukkan password Anda dibawah:", "Login", "Cancel", GetName(playerid, 0));
+    return Dialog_Show(playerid, Login, DIALOG_STYLE_PASSWORD, "LOGIN", WHITE"Selamat datang kembali "YELLOW"%s"WHITE", silahkan masukkan password Anda dibawah:", "Login", "Cancel", GetName(playerid, 0));
 
   new hash[65];
   SHA256_PassHash(inputtext, UcpData[playerid][uSalt], hash, sizeof(hash));
@@ -683,7 +718,7 @@ Dialog:DIALOG_LOGIN(playerid, response, listitem, inputtext[]) {
       SendErrorMessage(playerid, "Anda akan dikick.");
       KickEx(playerid);
     } else {
-      Dialog_Show(playerid, DIALOG_LOGIN, DIALOG_STYLE_PASSWORD, "LOGIN", WHITE"Selamat datang kembali "YELLOW"%s"WHITE", silahkan masukkan password Anda dibawah:\n"RED"Password salah! Sisa kesempatan: %d / 3", "Login", "Cancel", GetName(playerid, 0), UcpData[playerid][uLoginAttempts]);
+      Dialog_Show(playerid, Login, DIALOG_STYLE_PASSWORD, "LOGIN", WHITE"Selamat datang kembali "YELLOW"%s"WHITE", silahkan masukkan password Anda dibawah:\n"RED"Password salah! Sisa kesempatan: %d / 3", "Login", "Cancel", GetName(playerid, 0), UcpData[playerid][uLoginAttempts]);
     }
     return 1;
   }
@@ -698,7 +733,7 @@ Dialog:DIALOG_LOGIN(playerid, response, listitem, inputtext[]) {
   return 1;
 }
 
-Dialog:DIALOG_SELECTCHAR(playerid, response, listitem, inputtext[]) {
+Dialog:SelectChar(playerid, response, listitem, inputtext[]) {
   if (!response)
     return KickEx(playerid);
 
@@ -719,5 +754,39 @@ Dialog:DIALOG_SELECTCHAR(playerid, response, listitem, inputtext[]) {
   SetPlayerName(playerid, CharacterList[playerid][listitem]);
 
   mysql_tquery(g_DB, sprintf("SELECT * FROM `chars` WHERE `name` = '%s' ORDER BY `id` ASC LIMIT 1;", CharacterList[playerid][CharData[playerid][pCharacter]]), "OnPlayerLoaded", "d", playerid);
+  return 1;
+}
+
+Dialog:Register(playerid, response, listitem, inputtext[]) {
+  if (!response)
+    return KickEx(playerid);
+
+  for (new i; i < 64; i++)
+    UcpData[playerid][uSalt][i] = random(79) + 47;
+
+  SHA256_PassHash(inputtext, UcpData[playerid][uSalt], UcpData[playerid][uPassword], 64);
+  UcpData[playerid][uRegisterDate] = gettime();
+
+  GetPlayerIp(playerid, UcpData[playerid][uIP], 16);
+  GetPlayerName(playerid, UcpData[playerid][uUsername], MAX_PLAYER_NAME + 1);
+  new query[512];
+  format(query,sizeof(query),"INSERT INTO `ucp` (`username`, `password`, `salt`, `ip`, `registerdate`) VALUES ('%s', '%s', '%s', '%s', '%d')", UcpData[playerid][uUsername], UcpData[playerid][uPassword], UcpData[playerid][uSalt], UcpData[playerid][uIP], UcpData[playerid][uRegisterDate]);
+  mysql_tquery(g_DB, query);
+
+  Dialog_Show(playerid, DIALOG_EMAIL, DIALOG_STYLE_INPUT, "Email", WHITE"Tolong masukkan email dibawah ini:", "Enter", "Quit");
+  return 1;
+}
+
+Dialog:DIALOG_EMAIL(playerid, response, listitem, inputtext[]) {
+  if (!response)
+    return KickEx(playerid);
+
+  if (!IsValidEmail(inputtext))
+    return Dialog_Show(playerid, DIALOG_EMAIL, DIALOG_STYLE_INPUT, "Email", WHITE"Tolong masukkan email dibawah ini:\n"RED"ERROR: Masukkan format email yang benar!", "Enter", "Quit");
+
+  new query[256];
+  format(UcpData[playerid][uEmail], 32, inputtext);
+  format(query, sizeof(query), "SELECT * FROM `ucp` WHERE `email` = '%s' LIMIT 1;", inputtext);
+  mysql_tquery(g_DB, query, "OnCheckEmail", "d", playerid);
   return 1;
 }
